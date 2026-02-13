@@ -112,7 +112,7 @@ class ProductController extends Controller
                 $updateData[$field] = $validated[$field];
             }
         }
-        
+
         $product->update($updateData);
 
         // Sync materials if provided
@@ -129,22 +129,83 @@ class ProductController extends Controller
     public function destroy($id)
     {
         $product = Product::findOrFail($id);
-        
+
         // Delete all product images from storage
         foreach ($product->images as $image) {
             if ($image->image_url && Storage::disk('public')->exists($image->image_url)) {
                 Storage::disk('public')->delete($image->image_url);
             }
         }
-        
+
         // Delete size image from storage
         if ($product->sizeImage && $product->sizeImage->image_url) {
             if (Storage::disk('public')->exists($product->sizeImage->image_url)) {
                 Storage::disk('public')->delete($product->sizeImage->image_url);
             }
         }
-        
+
         $product->delete();
         return response()->json(['message' => 'Product deleted successfully']);
+    }
+
+    public function filter(Request $request)
+    {
+        $query = Product::with(['category', 'materials', 'images', 'sizeImage']);
+
+        // Filter by category
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        // Filter by material
+        if ($request->filled('material_id')) {
+            $query->whereHas('materials', function ($q) use ($request) {
+                $q->where('materials.id', $request->material_id);
+            });
+        }
+
+        // Search by product name or product code
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('product_name', 'LIKE', '%' . $request->search . '%')
+                    ->orWhere('product_code', 'LIKE', '%' . $request->search . '%');
+            });
+        }
+
+        $products = $query->get();
+        if ($products->isEmpty()) {
+            $response['message'] = 'Products not found';
+            $response['success'] = false;
+            return response()->json($response, Response::HTTP_NOT_FOUND);
+        }
+
+        $response['success'] = true;
+        $response['message'] = 'Products found';
+        $response['total'] = $products->count();
+        $response['data'] = $products;
+        return response()->json($response, Response::HTTP_OK);
+    }
+
+    public function search(Request $request)
+    {
+        $request->validate([
+            'q' => 'required|string|min:1|max:255',
+        ]);
+
+        $products = Product::with(['category', 'images'])
+            ->where('product_name', 'LIKE', '%' . $request->q . '%')
+            ->get();
+
+        if ($products->isEmpty()) {
+            $response['message'] = 'Products not found';
+            $response['success'] = false;
+            return response()->json($response, Response::HTTP_NOT_FOUND);
+        }
+
+        $response['success'] = true;
+        $response['message'] = 'Products found';
+        $response['total'] = $products->count();
+        $response['data'] = $products;
+        return response()->json($response, Response::HTTP_OK);
     }
 }

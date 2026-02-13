@@ -24,6 +24,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // PRODUCT ROUTES
     Route::prefix('products')->group(function () {
         Route::get('/', [ProductController::class, 'index']);
+        Route::get('/filter', [ProductController::class, 'filter']);   
+        Route::get('/search', [ProductController::class, 'search']);
         Route::post('/store', [ProductController::class, 'store']);
         Route::patch('/{id}', [ProductController::class, 'update']);
         Route::delete('/delete/{id}', [ProductController::class, 'destroy']);
@@ -53,7 +55,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/{product_id}', [ProductSizeImageController::class, 'update']);
         Route::delete('/delete/{product_id}', [ProductSizeImageController::class, 'destroy']);
     });
-    
+
     // Logout
     Route::post('logout', [AuthController::class, 'logout']);
 });
