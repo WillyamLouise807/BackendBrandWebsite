@@ -6,6 +6,7 @@ use App\Models\ProductImage;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 
 class ProductImageController extends Controller
 {
@@ -22,13 +23,6 @@ class ProductImageController extends Controller
         }
 
         $images = $query->orderBy('sort_order')->get();
-        
-        // Add full URL to images
-        $images->each(function ($image) {
-            if ($image->image_url) {
-                $image->image_url = asset('storage/' . $image->image_url);
-            }
-        });
         
         if ($images->isEmpty()) {
             $response['message'] = 'Images not found';
@@ -54,11 +48,13 @@ class ProductImageController extends Controller
         ]);
 
         // Handle image upload
-        if ($request->hasFile('image_url')) {
-            $image = $request->file('image_url');
-            $imageName = time() . '_' . str_replace(' ', '_', $image->getClientOriginalName());
-            $imagePath = $image->storeAs('products/images', $imageName, 'public');
-            $validated['image_url'] = $imagePath;
+        if($request->hasFile('image_url')) {
+            $uploadedFile = Cloudinary::upload($request->file('image_url')->getRealPath(), [
+                'folder' => 'uploads/product-image',
+            ]);
+
+            // Ambil URL aman dan public_id untuk file yang diunggah
+            $validated['image_url'] = $uploadedFile->getSecurePath(); // URL aman
         }
 
         // If sort_order is not provided, set it to the next available number
@@ -70,11 +66,7 @@ class ProductImageController extends Controller
 
         $image = ProductImage::create($validated);
         
-        // Return with full URL
-        $imageData = $image->load('product');
-        $imageData->image_url = asset('storage/' . $image->image_url);
-        
-        return response()->json($imageData, 201);
+        return response()->json($image, 201);
     }
 
     /**
@@ -100,26 +92,34 @@ class ProductImageController extends Controller
 
         // Handle image upload
         if ($request->hasFile('image_url')) {
-            // Delete old image if exists
-            if ($image->image_url && Storage::disk('public')->exists($image->image_url)) {
-                Storage::disk('public')->delete($image->image_url);
+            if ($image->image_url) {
+                // Ekstrak public_id dari URL
+                $fileUrl = $image->image_url;
+                $publicId = substr(
+                    $fileUrl,
+                    strpos($fileUrl, 'uploads/product-image/'),
+                    strrpos($fileUrl, '.') - strpos($fileUrl, 'uploads/product-image/')
+                );
+
+                // return($publicId);
+
+                // Hapus file lama di Cloudinary
+                Cloudinary::destroy($publicId);
             }
-            
-            $uploadedImage = $request->file('image_url');
-            $imageName = time() . '_' . str_replace(' ', '_', $uploadedImage->getClientOriginalName());
-            $imagePath = $uploadedImage->storeAs('products/images', $imageName, 'public');
-            $validated['image_url'] = $imagePath;
+
+            // Upload gambar baru ke Cloudinary
+            $uploadedFile = Cloudinary::upload($request->file('image_url')->getRealPath(), [
+                'folder' => 'uploads/product-image',
+            ]);
+            $validated['image_url'] = $uploadedFile->getSecurePath(); // URL file baru
+        } else {
+            // Jika tidak ada file baru, tetap gunakan image_url lama
+            $validated['image_url'] = $image->image_url;
         }
 
         $image->update($validated);
         
-        // Return with full URL
-        $imageData = $image->load('product');
-        if ($image->image_url) {
-            $imageData->image_url = asset('storage/' . $image->image_url);
-        }
-        
-        return response()->json($imageData);
+        return response()->json($image);
     }
 
     /**
@@ -129,13 +129,24 @@ class ProductImageController extends Controller
     {
         $image = ProductImage::findOrFail($id);
         
-        // Delete image file if exists
-        if ($image->image_url && Storage::disk('public')->exists($image->image_url)) {
-            Storage::disk('public')->delete($image->image_url);
+        $fileUrl = $image->image_url;
+
+        if($image){
+            // Hapus gambar lama
+            $publicId = substr($fileUrl, strpos($fileUrl, 'uploads/product-image/'), strrpos($fileUrl, '.') - strpos($fileUrl, 'uploads/product-image/'));
+
+            // Hapus file lama di Cloudinary
+            Cloudinary::destroy($publicId);
+
+            $image->delete();
+            $data["success"] = true;
+            $data["message"] = "Product Image deleted successfully";
+            return response()->json($data, Response::HTTP_OK);
+        }else {
+            $data["success"] = false;
+            $data["message"] = "Product Image not found";
+            return response()->json($data, Response::HTTP_NOT_FOUND);
         }
-        
-        $image->delete();
-        return response()->json(['message' => 'Product image deleted successfully']);
     }
 
     /**
