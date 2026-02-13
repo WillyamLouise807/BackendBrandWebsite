@@ -4,7 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\ProductSizeImage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\Response;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 
 class ProductSizeImageController extends Controller
 {
@@ -19,10 +20,6 @@ class ProductSizeImageController extends Controller
             
         if (!$sizeImage) {
             return response()->json(['message' => 'Size image not found'], 404);
-        }
-        
-        if ($sizeImage->image_url) {
-            $sizeImage->image_url = asset('storage/' . $sizeImage->image_url);
         }
         
         return response()->json($sizeImage);
@@ -49,20 +46,18 @@ class ProductSizeImageController extends Controller
         }
 
         // Handle image upload
-        if ($request->hasFile('image_url')) {
-            $image = $request->file('image_url');
-            $imageName = time() . '_' . str_replace(' ', '_', $image->getClientOriginalName());
-            $imagePath = $image->storeAs('products/size-images', $imageName, 'public');
-            $validated['image_url'] = $imagePath;
+        if($request->hasFile('image_url')) {
+            $uploadedFile = Cloudinary::upload($request->file('image_url')->getRealPath(), [
+                'folder' => 'uploads/product-size-image',
+            ]);
+
+            // Ambil URL aman dan public_id untuk file yang diunggah
+            $validated['image_url'] = $uploadedFile->getSecurePath(); // URL aman
         }
 
         $sizeImage = ProductSizeImage::create($validated);
         
-        // Return with full URL
-        $sizeImageData = $sizeImage->load('product');
-        $sizeImageData->image_url = asset('storage/' . $sizeImage->image_url);
-        
-        return response()->json($sizeImageData, 201);
+        return response()->json($sizeImage, 201);
     }
 
     /**
@@ -78,26 +73,34 @@ class ProductSizeImageController extends Controller
 
         // Handle image upload
         if ($request->hasFile('image_url')) {
-            // Delete old image if exists
-            if ($sizeImage->image_url && Storage::disk('public')->exists($sizeImage->image_url)) {
-                Storage::disk('public')->delete($sizeImage->image_url);
+            if ($sizeImage->image_url) {
+                // Ekstrak public_id dari URL
+                $fileUrl = $sizeImage->image_url;
+                $publicId = substr(
+                    $fileUrl,
+                    strpos($fileUrl, 'uploads/product-size-image/'),
+                    strrpos($fileUrl, '.') - strpos($fileUrl, 'uploads/product-size-image/')
+                );
+
+                // return($publicId);
+
+                // Hapus file lama di Cloudinary
+                Cloudinary::destroy($publicId);
             }
-            
-            $uploadedImage = $request->file('image_url');
-            $imageName = time() . '_' . str_replace(' ', '_', $uploadedImage->getClientOriginalName());
-            $imagePath = $uploadedImage->storeAs('products/size-images', $imageName, 'public');
-            $validated['image_url'] = $imagePath;
+
+            // Upload gambar baru ke Cloudinary
+            $uploadedFile = Cloudinary::upload($request->file('image_url')->getRealPath(), [
+                'folder' => 'uploads/product-size-image',
+            ]);
+            $validated['image_url'] = $uploadedFile->getSecurePath(); // URL file baru
+        } else {
+            // Jika tidak ada file baru, tetap gunakan image_url lama
+            $validated['image_url'] = $sizeImage->image_url;
         }
 
         $sizeImage->update($validated);
         
-        // Return with full URL
-        $sizeImageData = $sizeImage->load('product');
-        if ($sizeImage->image_url) {
-            $sizeImageData->image_url = asset('storage/' . $sizeImage->image_url);
-        }
-        
-        return response()->json($sizeImageData);
+        return response()->json($sizeImage);
     }
 
     /**
@@ -107,12 +110,23 @@ class ProductSizeImageController extends Controller
     {
         $sizeImage = ProductSizeImage::where('product_id', $productId)->firstOrFail();
         
-        // Delete image file if exists
-        if ($sizeImage->image_url && Storage::disk('public')->exists($sizeImage->image_url)) {
-            Storage::disk('public')->delete($sizeImage->image_url);
+        $fileUrl = $sizeImage->image_url;
+
+        if($sizeImage){
+            // Hapus gambar lama
+            $publicId = substr($fileUrl, strpos($fileUrl, 'uploads/product-size-image/'), strrpos($fileUrl, '.') - strpos($fileUrl, 'uploads/product-size-image/'));
+
+            // Hapus file lama di Cloudinary
+            Cloudinary::destroy($publicId);
+
+            $sizeImage->delete();
+            $data["success"] = true;
+            $data["message"] = "Size Image deleted successfully";
+            return response()->json($data, Response::HTTP_OK);
+        }else {
+            $data["success"] = false;
+            $data["message"] = "Size Image not found";
+            return response()->json($data, Response::HTTP_NOT_FOUND);
         }
-        
-        $sizeImage->delete();
-        return response()->json(['message' => 'Size image deleted successfully']);
     }
 }
