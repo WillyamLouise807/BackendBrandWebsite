@@ -208,4 +208,19 @@ class ProductController extends Controller
         $response['data'] = $products;
         return response()->json($response, Response::HTTP_OK);
     }
+
+    public function recommendedProducts($currentProductId)
+    {
+        $recommendedProducts = Product::where('id', '!=', $currentProductId)
+            ->with(['category', 'images', 'materials'])
+            ->has('images') // pastikan punya gambar
+            ->inRandomOrder()
+            ->limit(4)
+            ->get();
+
+        $response['success'] = true;
+        $response['total'] = $recommendedProducts->count();
+        $response['data'] = $recommendedProducts;
+        return response()->json($response, Response::HTTP_OK);
+    }
 }

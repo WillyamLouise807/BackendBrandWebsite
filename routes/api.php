@@ -27,6 +27,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/filter', [ProductController::class, 'filter']);   
         Route::get('/search', [ProductController::class, 'search']);
         Route::post('/store', [ProductController::class, 'store']);
+        Route::get('/{id}/recommended', [ProductController::class, 'recommendedProducts']);
         Route::patch('/{id}', [ProductController::class, 'update']);
         Route::delete('/delete/{id}', [ProductController::class, 'destroy']);
     });
