@@ -36,7 +36,7 @@ class CategoryController extends Controller
     {
         $validated = $request->validate([
             'category_name' => 'required|string|max:255',
-            'image_url' => 'required|file|mimes:jpeg,png,jpg,webp,gif',
+            'image_url' => 'required|file',
         ]);
 
         // Handle image upload
@@ -71,7 +71,7 @@ class CategoryController extends Controller
 
         $validated = $request->validate([
             'category_name' => 'sometimes|required|string|max:255',
-            'image_url' => 'nullable|file|mimes:jpeg,png,jpg,webp,gif',
+            'image_url' => 'nullable|file',
         ]);
 
         if ($request->hasFile('image_url')) {
