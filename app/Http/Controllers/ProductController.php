@@ -51,8 +51,8 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'color' => 'nullable|string|max:255',
             'finishing' => 'nullable|string|max:255',
-            'shopee_url' => 'nullable|string|max:255',
-            'tokopedia_url' => 'nullable|string|max:255',
+            'shopee_url' => 'nullable|string',
+            'tokopedia_url' => 'nullable|string',
             'materials' => 'nullable|array',
             'materials.*' => 'exists:materials,id',
         ]);
@@ -99,8 +99,8 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'color' => 'nullable|string|max:255',
             'finishing' => 'nullable|string|max:255',
-            'shopee_url' => 'nullable|string|max:255',
-            'tokopedia_url' => 'nullable|string|max:255',
+            'shopee_url' => 'nullable|string',
+            'tokopedia_url' => 'nullable|string',
             'materials' => 'nullable|array',
             'materials.*' => 'exists:materials,id',
         ]);
