@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
@@ -130,22 +132,48 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
 
-        // Delete all product images from storage
+        // Delete all product images from Cloudinary
         foreach ($product->images as $image) {
-            if ($image->image_url && Storage::disk('public')->exists($image->image_url)) {
-                Storage::disk('public')->delete($image->image_url);
+            if ($image->image_url) {
+                try {
+                    // Extract public_id from Cloudinary URL
+                    $publicId = substr(
+                        $image->image_url,
+                        strpos($image->image_url, 'uploads/product-image/'),
+                        strrpos($image->image_url, '.') - strpos($image->image_url, 'uploads/product-image/')
+                    );
+
+                    // Delete from Cloudinary
+                    Cloudinary::destroy($publicId);
+                } catch (\Exception $e) {
+                    Log::error('Failed to delete image from Cloudinary: ' . $e->getMessage());
+                }
             }
         }
 
-        // Delete size image from storage
+        // Delete size image from Cloudinary
         if ($product->sizeImage && $product->sizeImage->image_url) {
-            if (Storage::disk('public')->exists($product->sizeImage->image_url)) {
-                Storage::disk('public')->delete($product->sizeImage->image_url);
+            try {
+                // Extract public_id from Cloudinary URL
+                $publicId = substr(
+                    $product->sizeImage->image_url,
+                    strpos($product->sizeImage->image_url, 'uploads/product-size-image/'),
+                    strrpos($product->sizeImage->image_url, '.') - strpos($product->sizeImage->image_url, 'uploads/product-size-image/')
+                );
+
+                // Delete from Cloudinary
+                Cloudinary::destroy($publicId);
+            } catch (\Exception $e) {
+                Log::error('Failed to delete size image from Cloudinary: ' . $e->getMessage());
             }
         }
 
         $product->delete();
-        return response()->json(['message' => 'Product deleted successfully']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product deleted successfully'
+        ]);
     }
 
     public function filter(Request $request)
